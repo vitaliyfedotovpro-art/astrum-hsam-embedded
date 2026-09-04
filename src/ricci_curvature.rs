@@ -1,6 +1,14 @@
 //! Forman-Ricci Curvature Analysis for Hypergraphs
 //! Measures topological curvature F(e) for edges and hyperedges to detect
-//! information bottlenecks, community clusters, and prune noise (F < 0.10).
+//! information bottlenecks and community clusters.
+//!
+//! Sign convention, because an earlier version of this line had it backwards: HIGH F means
+//! the edge sits inside a dense cluster with alternative paths — redundant, safe to drop.
+//! NEGATIVE F means a bridge between clusters — load-bearing, kept. Pruning on `F < 0.10`
+//! would cut exactly the edges worth keeping. See `MemoryGraphNexus::prune_redundant_edges`.
+//!
+//! Nothing in the engine calls the pruner on its own: it is a library function the embedder
+//! invokes as an explicit maintenance step, and it is not part of the retrieval path.
 
 use alloc::string::String;
 use serde::{Deserialize, Serialize};
