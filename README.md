@@ -27,10 +27,18 @@ Cross-compiles to Cortex-M4 and RISC-V; a C-ABI is included.
 ## In sixty seconds
 
 ```bash
-export PATH=~/.rustup/toolchains/stable-*/bin:$PATH   # rustup's rustc must win over Homebrew's
-cargo test                                            # 29 tests
+cargo test                                    # 29 tests, and again with --features capi-int8
 cargo rustc --release --features std --crate-type staticlib
 cc ctest/main.c -Iinclude -Ltarget/release -lastrum_memory -o ctest/ctest && ./ctest/ctest
+```
+
+On Linux the C test needs `-lm -lpthread -ldl` after `-lastrum_memory`. On macOS with
+Homebrew's Rust installed next to rustup, put rustup's toolchain first — otherwise `cargo`
+picks a `rustc` with no cross-compilation targets and the MCU builds fail with "can't find
+crate for `core`":
+
+```bash
+export PATH=~/.rustup/toolchains/stable-*/bin:$PATH
 ```
 
 The QEMU benchmarks need `qemu-system-arm`; every command is listed in
