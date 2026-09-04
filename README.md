@@ -22,7 +22,8 @@ Cross-compiles to Cortex-M4 and RISC-V; a C-ABI is included.
 | [RESULTS.md](RESULTS.md) | Every measurement, with the method and the command to re-run it |
 | [INTEGRATION.md](INTEGRATION.md) | Building it, feeding it, the rules that bite if ignored |
 | [`include/astrum_memory.h`](include/astrum_memory.h) | The C API |
-| [`ctest/main.c`](ctest/main.c) | Shortest working example — 32 checks against the real library |
+| [`examples/agent_loop.rs`](examples/agent_loop.rs) | **What using it looks like** — facts in with their provenance, a question, the prompt block that comes out. `cargo run --example agent_loop` |
+| [`ctest/main.c`](ctest/main.c) | The same from C — 32 checks against the real library |
 
 ## In sixty seconds
 
