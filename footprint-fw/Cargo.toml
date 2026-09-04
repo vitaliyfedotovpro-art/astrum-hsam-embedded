@@ -1,0 +1,29 @@
+[workspace]
+
+[package]
+name = "footprint-fw"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+cortex-m = { version = "0.7", features = ["critical-section-single-core"] }
+cortex-m-rt = "0.7"
+cortex-m-semihosting = "0.5"
+embedded-alloc = "0.6"
+libm = "0.2"
+# capi-int8: the C-ABI footprint bin measures the shippable int8 configuration.
+# The other bins reach for the index types directly, so the flag is a no-op for them.
+astrum_memory = { path = "..", package = "astrum-hsam-embedded", default-features = false, features = ["capi-int8"] }
+
+[[bin]]
+name = "footprint-fw"
+test = false
+bench = false
+
+[profile.release]
+panic = "abort"
+opt-level = "z"
+lto = true
+codegen-units = 1
+debug = true

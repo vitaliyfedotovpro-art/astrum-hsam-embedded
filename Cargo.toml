@@ -1,0 +1,52 @@
+[package]
+name = "astrum-hsam-embedded"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "no_std Rust memory engine for on-device LLM agents: provenance-gated recall that keeps a model's own output from becoming its evidence, and canon facts alive under memory pressure. ~801 B/fact, C-ABI, Cortex-M4 and RISC-V."
+repository = "https://github.com/vitaliyfedotovpro-art/astrum-hsam-embedded"
+readme = "README.md"
+keywords = ["no-std", "embedded", "llm", "memory", "agent"]
+categories = ["embedded", "no-std", "data-structures", "science"]
+exclude = ["footprint-fw/"]
+
+[lib]
+name = "astrum_memory"
+# rlib so the crate composes as a dependency (firmware links it, provides its own
+# allocator/panic). The C-ABI staticlib deliverable is produced on demand:
+#   cargo rustc --release --no-default-features --features runtime \
+#         --target thumbv7em-none-eabihf --crate-type staticlib
+crate-type = ["rlib"]
+
+[dependencies]
+serde = { version = "1.0", default-features = false, features = ["derive", "alloc"] }
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
+# default-features off so the `libm-arch` feature below can gate the inline-asm paths.
+libm = { version = "0.2", default-features = false }
+
+[dev-dependencies]
+approx = "0.5"
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+
+[features]
+default = ["std", "libm-arch"]
+# libm's hand-written SIMD/asm routines. On by default on hosts; Miri cannot execute inline
+# asm, so `cargo miri test --no-default-features --features std` turns it off to check the
+# unsafe C-ABI code. Costs the embedded targets nothing: libm only has asm paths for x86,
+# aarch64 and wasm — thumbv7em and riscv32 use the pure-Rust implementation either way.
+libm-arch = ["libm/arch"]
+# `std` adds file-based persistence (Snapshot::save/load). Without it the crate is pure no_std+alloc.
+std = ["serde/std", "serde_json/std"]
+# `runtime` provides a libc-backed global allocator + panic handler so the no_std
+# staticlib links on a libc host. Consumers that supply their OWN allocator/panic
+# (e.g. a bare-metal firmware with embedded-alloc) must leave this OFF.
+runtime = []
+# `capi-int8` builds the C-ABI (and its snapshots) against the int8 vector index:
+# 801 B/node measured on Cortex-M4 versus 1,949 B/node for the default exact f32 index,
+# at <=0.3 pp task cost. Snapshots are NOT interchangeable between the two builds.
+capi-int8 = []

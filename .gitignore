@@ -1,0 +1,6 @@
+/target
+/footprint-fw/target
+/ctest/ctest
+/ctest/ctest_asan
+/ctest/*.dSYM
+*.tmp
