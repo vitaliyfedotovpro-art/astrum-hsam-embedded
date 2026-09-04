@@ -239,7 +239,11 @@ pub type CapiIndex = SimpleVectorIndex;
 pub type CapiIndex = Int8VectorIndex;
 
 /// Name of the active C-ABI index backend, as stored in a snapshot. `"f32"` or `"int8"`.
-pub const CAPI_INDEX_KIND: &str = if cfg!(feature = "capi-int8") { "int8" } else { "f32" };
+pub const CAPI_INDEX_KIND: &str = if cfg!(feature = "capi-int8") {
+    "int8"
+} else {
+    "f32"
+};
 
 #[cfg(test)]
 mod tests {
@@ -258,9 +262,15 @@ mod tests {
     #[test]
     fn test_vector_index_search() {
         let mut index = SimpleVectorIndex::new(3);
-        index.insert("node_a".to_string(), vec![1.0, 0.0, 0.0]).unwrap();
-        index.insert("node_b".to_string(), vec![0.8, 0.2, 0.0]).unwrap();
-        index.insert("node_c".to_string(), vec![0.0, 1.0, 0.0]).unwrap();
+        index
+            .insert("node_a".to_string(), vec![1.0, 0.0, 0.0])
+            .unwrap();
+        index
+            .insert("node_b".to_string(), vec![0.8, 0.2, 0.0])
+            .unwrap();
+        index
+            .insert("node_c".to_string(), vec![0.0, 1.0, 0.0])
+            .unwrap();
 
         let query = vec![1.0, 0.0, 0.0];
         let hits = index.search(&query, 2);

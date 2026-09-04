@@ -166,14 +166,24 @@ mod tests {
         // A file written by the OTHER build must fail with a message naming both kinds,
         // not with an opaque serde error. (Its index encoding never parses here, so the
         // header re-read is what produces the diagnosis.)
-        let other = if CAPI_INDEX_KIND == "f32" { "int8" } else { "f32" };
+        let other = if CAPI_INDEX_KIND == "f32" {
+            "int8"
+        } else {
+            "f32"
+        };
         let foreign = alloc::format!(
             r#"{{"version":1,"nexus":null,"index":{{"dimension":3,"vectors":[]}},"index_kind":"{}"}}"#,
             other
         );
         let err = Snapshot::from_json_slice_checked(foreign.as_bytes()).unwrap_err();
-        assert!(err.contains(other), "error should name the foreign kind: {err}");
-        assert!(err.contains(CAPI_INDEX_KIND), "error should name this build: {err}");
+        assert!(
+            err.contains(other),
+            "error should name the foreign kind: {err}"
+        );
+        assert!(
+            err.contains(CAPI_INDEX_KIND),
+            "error should name this build: {err}"
+        );
     }
 
     #[test]

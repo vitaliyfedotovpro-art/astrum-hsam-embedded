@@ -1,5 +1,5 @@
 //! Forman-Ricci Curvature Analysis for Hypergraphs
-//! Measures topological curvature F(e) for edges and hyperedges to detect 
+//! Measures topological curvature F(e) for edges and hyperedges to detect
 //! information bottlenecks, community clusters, and prune noise (F < 0.10).
 
 use alloc::string::String;
@@ -17,19 +17,13 @@ pub struct FormanRicciCalculator;
 impl FormanRicciCalculator {
     /// Calculate Forman-Ricci curvature F(e) for an edge e = (u, v):
     /// F(e) = 4 - deg(u) - deg(v) + 3 * # triangles containing e
-    pub fn calculate_edge_curvature(
-        deg_u: usize,
-        deg_v: usize,
-        triangles_count: usize,
-    ) -> f32 {
+    pub fn calculate_edge_curvature(deg_u: usize, deg_v: usize, triangles_count: usize) -> f32 {
         4.0 - (deg_u as f32) - (deg_v as f32) + 3.0 * (triangles_count as f32)
     }
 
     /// Calculate Forman-Ricci curvature F(h) for a hyperedge h connecting node_ids:
     /// F(h) = |h| * (4 - sum(deg(v) for v in h) / |h|)
-    pub fn calculate_hyperedge_curvature(
-        node_degrees: &[usize],
-    ) -> f32 {
+    pub fn calculate_hyperedge_curvature(node_degrees: &[usize]) -> f32 {
         let size = node_degrees.len();
         if size == 0 {
             return 0.0;

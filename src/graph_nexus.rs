@@ -97,7 +97,12 @@ impl MemoryGraphNexus {
     }
 
     /// Infer proper cluster routing based on node tags and provenance
-    pub fn infer_cluster_for_node(&self, source_type: &SourceType, tags: &[String], explicit_cluster: Option<&str>) -> String {
+    pub fn infer_cluster_for_node(
+        &self,
+        source_type: &SourceType,
+        tags: &[String],
+        explicit_cluster: Option<&str>,
+    ) -> String {
         if let Some(cluster) = explicit_cluster {
             return cluster.to_string();
         }
@@ -108,15 +113,30 @@ impl MemoryGraphNexus {
 
         let tag_set: BTreeSet<String> = tags.iter().map(|t| t.to_lowercase()).collect();
 
-        if tag_set.contains("private") || tag_set.contains("confidential") || tag_set.contains("secret") {
+        if tag_set.contains("private")
+            || tag_set.contains("confidential")
+            || tag_set.contains("secret")
+        {
             "private".to_string()
-        } else if tag_set.contains("personal") || tag_set.contains("family") || tag_set.contains("home") {
+        } else if tag_set.contains("personal")
+            || tag_set.contains("family")
+            || tag_set.contains("home")
+        {
             "personal".to_string()
-        } else if tag_set.contains("work") || tag_set.contains("deadline") || tag_set.contains("task") {
+        } else if tag_set.contains("work")
+            || tag_set.contains("deadline")
+            || tag_set.contains("task")
+        {
             "work".to_string()
-        } else if tag_set.contains("architecture") || tag_set.contains("code") || tag_set.contains("bug") {
+        } else if tag_set.contains("architecture")
+            || tag_set.contains("code")
+            || tag_set.contains("bug")
+        {
             "system".to_string()
-        } else if tag_set.contains("project") || tag_set.contains("goal") || tag_set.contains("milestone") {
+        } else if tag_set.contains("project")
+            || tag_set.contains("goal")
+            || tag_set.contains("milestone")
+        {
             "project".to_string()
         } else {
             "shared".to_string()
@@ -124,6 +144,9 @@ impl MemoryGraphNexus {
     }
 
     /// Add a new node to the graph nexus
+    // Eight fields, because that is what a node is; bundling them into a struct
+    // would only move the same list one level out.
+    #[allow(clippy::too_many_arguments)]
     pub fn create_node(
         &mut self,
         content: String,
@@ -193,7 +216,11 @@ impl MemoryGraphNexus {
     /// Auto-link node pairs whose embeddings are at least `threshold` cosine-similar,
     /// using the provided vector index. Edge weight = the cosine score. Returns the
     /// number of edges created. This is what turns isolated nodes into a graph.
-    pub fn link_semantic(&mut self, index: &crate::vector_index::SimpleVectorIndex, threshold: f32) -> usize {
+    pub fn link_semantic(
+        &mut self,
+        index: &crate::vector_index::SimpleVectorIndex,
+        threshold: f32,
+    ) -> usize {
         let entries = index.entries(); // &[(node_id, embedding)]
         let mut to_add: Vec<(String, String, f32)> = Vec::new();
         for i in 0..entries.len() {
@@ -301,7 +328,9 @@ impl MemoryGraphNexus {
                 // Strip possessive first ("Alex's" -> "Alex"), then trim non-alphanumerics.
                 .map(|w| w.split('\'').next().unwrap_or(w))
                 .map(|w| w.trim_matches(|c: char| !c.is_alphanumeric()).to_string())
-                .filter(|w| w.len() >= 3 && w.chars().next().map(|c| c.is_uppercase()).unwrap_or(false))
+                .filter(|w| {
+                    w.len() >= 3 && w.chars().next().map(|c| c.is_uppercase()).unwrap_or(false)
+                })
                 .collect()
         }
         let node_tokens: Vec<(String, BTreeSet<String>)> = self
@@ -326,7 +355,11 @@ impl MemoryGraphNexus {
                     .filter(|t| freq[*t] <= max_entity_freq)
                     .count();
                 if shared >= min_shared {
-                    to_add.push((node_tokens[i].0.clone(), node_tokens[j].0.clone(), shared as f32));
+                    to_add.push((
+                        node_tokens[i].0.clone(),
+                        node_tokens[j].0.clone(),
+                        shared as f32,
+                    ));
                 }
             }
         }
@@ -351,8 +384,12 @@ impl MemoryGraphNexus {
         for e in &self.edges {
             *deg.entry(e.source_id.as_str()).or_insert(0) += 1;
             *deg.entry(e.target_id.as_str()).or_insert(0) += 1;
-            adj.entry(e.source_id.as_str()).or_default().insert(e.target_id.as_str());
-            adj.entry(e.target_id.as_str()).or_default().insert(e.source_id.as_str());
+            adj.entry(e.source_id.as_str())
+                .or_default()
+                .insert(e.target_id.as_str());
+            adj.entry(e.target_id.as_str())
+                .or_default()
+                .insert(e.source_id.as_str());
         }
         // Score each edge; collect redundant candidates (highest F first — drop the most redundant).
         let mut scored: Vec<(usize, f32)> = self
@@ -415,11 +452,18 @@ impl MemoryGraphNexus {
         // Build adjacency once (O(E)) instead of scanning the edge list per visited node.
         let mut adj: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
         for e in &self.edges {
-            adj.entry(e.source_id.as_str()).or_default().push(e.target_id.as_str());
-            adj.entry(e.target_id.as_str()).or_default().push(e.source_id.as_str());
+            adj.entry(e.source_id.as_str())
+                .or_default()
+                .push(e.target_id.as_str());
+            adj.entry(e.target_id.as_str())
+                .or_default()
+                .push(e.source_id.as_str());
         }
-        let mut seen: BTreeSet<String> =
-            seeds.iter().filter(|s| self.nodes.contains_key(*s)).cloned().collect();
+        let mut seen: BTreeSet<String> = seeds
+            .iter()
+            .filter(|s| self.nodes.contains_key(*s))
+            .cloned()
+            .collect();
         let mut frontier: Vec<String> = seen.iter().cloned().collect();
         for _ in 0..hops {
             let mut next = Vec::new();
@@ -493,7 +537,14 @@ impl MemoryGraphNexus {
             .nodes
             .values()
             .filter(|n| n.is_ephemeral) // canon is exempt
-            .map(|n| (n.id.clone(), n.last_accessed_at, n.access_count, n.importance))
+            .map(|n| {
+                (
+                    n.id.clone(),
+                    n.last_accessed_at,
+                    n.access_count,
+                    n.importance,
+                )
+            })
             .collect();
         // Least valuable first: lowest importance, then oldest access, then fewest accesses.
         evictable.sort_by(|a, b| {
@@ -507,7 +558,8 @@ impl MemoryGraphNexus {
         let mut removed = 0;
         for (id, ..) in evictable.iter().take(remove_n) {
             self.nodes.remove(id);
-            self.edges.retain(|e| e.source_id != *id && e.target_id != *id);
+            self.edges
+                .retain(|e| e.source_id != *id && e.target_id != *id);
             removed += 1;
         }
         removed
@@ -592,7 +644,11 @@ impl MemoryGraphNexus {
     /// Self-description is never promoted no matter how many confirmations it collects — the
     /// provenance quarantine is not a ranking preference that enough votes can overturn.
     /// Nodes already canon are left alone. Returns how many were promoted.
-    pub fn promote_confirmed_to_canon(&mut self, min_confirmations: u32, level: CanonLevel) -> usize {
+    pub fn promote_confirmed_to_canon(
+        &mut self,
+        min_confirmations: u32,
+        level: CanonLevel,
+    ) -> usize {
         if !level.is_canon() {
             return 0;
         }
@@ -636,9 +692,14 @@ impl MemoryGraphNexus {
     }
 
     /// Retrieve visible cluster scope for a given persona persona_name
-    pub fn get_scope_clusters(&self, persona_name: &str, include_system: bool, include_private: bool) -> BTreeSet<String> {
+    pub fn get_scope_clusters(
+        &self,
+        persona_name: &str,
+        include_system: bool,
+        include_private: bool,
+    ) -> BTreeSet<String> {
         let mut scope = BTreeSet::new();
-        
+
         // Base public clusters
         scope.insert("shared".to_string());
         scope.insert("work".to_string());
@@ -707,7 +768,15 @@ mod tests {
     fn test_edges_and_traversal() {
         let mut nexus = MemoryGraphNexus::new();
         let mk = |n: &mut MemoryGraphNexus, t: &str| {
-            n.create_node(t.into(), t.into(), vec![], SourceType::UserUtterance, 2, None, CanonLevel::None)
+            n.create_node(
+                t.into(),
+                t.into(),
+                vec![],
+                SourceType::UserUtterance,
+                2,
+                None,
+                CanonLevel::None,
+            )
         };
         let a = mk(&mut nexus, "A");
         let b = mk(&mut nexus, "B");
@@ -718,7 +787,7 @@ mod tests {
         nexus.add_edge(&b, &c, "relatedMeaning", 0.9);
         // Dedup + missing-node guards.
         nexus.add_edge(&a, &b, "relatedMeaning", 0.9); // duplicate ignored
-        nexus.add_edge(&a, "nonexistent", "x", 1.0);   // missing target ignored
+        nexus.add_edge(&a, "nonexistent", "x", 1.0); // missing target ignored
         assert_eq!(nexus.edges().len(), 2);
 
         // Neighbors are undirected.
@@ -726,9 +795,9 @@ mod tests {
         assert_eq!(nexus.neighbors(&a), vec![b.clone()]);
 
         // 1 hop from A reaches B but not C; 2 hops reaches C (the multi-hop payoff).
-        let one = nexus.expand(&[a.clone()], 1);
+        let one = nexus.expand(core::slice::from_ref(&a), 1);
         assert!(one.contains(&b) && !one.contains(&c));
-        let two = nexus.expand(&[a.clone()], 2);
+        let two = nexus.expand(core::slice::from_ref(&a), 2);
         assert!(two.contains(&c));
     }
 
@@ -738,42 +807,78 @@ mod tests {
         let mut g = MemoryGraphNexus::new();
         let mut idx = SimpleVectorIndex::new(4);
         let mk = |g: &mut MemoryGraphNexus| {
-            g.create_node("x".into(), String::new(), vec![], SourceType::UserUtterance, 2, None, CanonLevel::None)
+            g.create_node(
+                "x".into(),
+                String::new(),
+                vec![],
+                SourceType::UserUtterance,
+                2,
+                None,
+                CanonLevel::None,
+            )
         };
         let a = mk(&mut g);
         let b = mk(&mut g);
         let c = mk(&mut g);
         idx.insert(a.clone(), vec![1.0, 0.0, 0.0, 0.0]).unwrap();
         idx.insert(b.clone(), vec![0.98, 0.02, 0.0, 0.0]).unwrap(); // near-duplicate of a
-        idx.insert(c.clone(), vec![0.0, 0.0, 1.0, 0.0]).unwrap();   // orthogonal
+        idx.insert(c.clone(), vec![0.0, 0.0, 1.0, 0.0]).unwrap(); // orthogonal
 
         g.link_semantic_lsh(&idx, 0.9, 12);
-        assert!(g.neighbors(&a).contains(&b), "near-duplicate should be linked");
-        assert!(!g.neighbors(&a).contains(&c), "orthogonal vector should not link");
+        assert!(
+            g.neighbors(&a).contains(&b),
+            "near-duplicate should be linked"
+        );
+        assert!(
+            !g.neighbors(&a).contains(&c),
+            "orthogonal vector should not link"
+        );
     }
 
     #[test]
     fn test_ricci_prune_keeps_bridges_drops_redundant() {
         let mut g = MemoryGraphNexus::new();
         let mk = |g: &mut MemoryGraphNexus, t: &str| {
-            g.create_node(t.into(), t.into(), vec![], SourceType::UserUtterance, 2, None, CanonLevel::None)
+            g.create_node(
+                t.into(),
+                t.into(),
+                vec![],
+                SourceType::UserUtterance,
+                2,
+                None,
+                CanonLevel::None,
+            )
         };
         // Two triangles A-B-C and D-E-F, joined by a single bridge C-D.
         let (a, b, c) = (mk(&mut g, "A"), mk(&mut g, "B"), mk(&mut g, "C"));
         let (d, e, f) = (mk(&mut g, "D"), mk(&mut g, "E"), mk(&mut g, "F"));
-        for (x, y) in [(&a, &b), (&b, &c), (&c, &a), (&d, &e), (&e, &f), (&f, &d), (&c, &d)] {
+        for (x, y) in [
+            (&a, &b),
+            (&b, &c),
+            (&c, &a),
+            (&d, &e),
+            (&e, &f),
+            (&f, &d),
+            (&c, &d),
+        ] {
             g.add_edge(x, y, "relatedMeaning", 1.0);
         }
         assert_eq!(g.edges().len(), 7);
 
         // Prune redundant (high-F) triangle edges; the bridge C-D has negative F → kept.
         let pruned = g.prune_redundant_edges(2.0);
-        assert!(pruned >= 1, "at least one redundant triangle edge should be pruned");
+        assert!(
+            pruned >= 1,
+            "at least one redundant triangle edge should be pruned"
+        );
         // The bridge survives (it is the only path between the two clusters).
         assert!(g.neighbors(&c).contains(&d), "bridge C-D must be kept");
         // No node was isolated.
         for id in [&a, &b, &c, &d, &e, &f] {
-            assert!(!g.neighbors(id).is_empty(), "no node should be isolated by pruning");
+            assert!(
+                !g.neighbors(id).is_empty(),
+                "no node should be isolated by pruning"
+            );
         }
     }
 
@@ -781,7 +886,15 @@ mod tests {
     fn test_entity_linking_ignores_frequent_subject() {
         let mut nexus = MemoryGraphNexus::new();
         let mk = |n: &mut MemoryGraphNexus, t: &str| {
-            n.create_node(t.into(), t.into(), vec![], SourceType::UserUtterance, 2, None, CanonLevel::None)
+            n.create_node(
+                t.into(),
+                t.into(),
+                vec![],
+                SourceType::UserUtterance,
+                2,
+                None,
+                CanonLevel::None,
+            )
         };
         // "Alex" appears in 3 nodes (frequent → ignored). "Meridian" (freq 2) links the pair.
         let a = mk(&mut nexus, "Alex works at Meridian");
@@ -793,7 +906,10 @@ mod tests {
         let edges = nexus.link_by_entities(2, 1);
         assert_eq!(edges, 1, "only the Meridian pair should link");
         assert!(nexus.neighbors(&a).contains(&b));
-        assert!(!nexus.neighbors(&a).contains(&c), "Alex is too frequent to link a–c");
+        assert!(
+            !nexus.neighbors(&a).contains(&c),
+            "Alex is too frequent to link a–c"
+        );
     }
 
     #[test]
@@ -801,7 +917,15 @@ mod tests {
         use crate::vector_index::SimpleVectorIndex;
         let mut nexus = MemoryGraphNexus::new();
         let mk = |n: &mut MemoryGraphNexus, t: &str| {
-            n.create_node(t.into(), t.into(), vec![], SourceType::UserUtterance, 2, None, CanonLevel::None)
+            n.create_node(
+                t.into(),
+                t.into(),
+                vec![],
+                SourceType::UserUtterance,
+                2,
+                None,
+                CanonLevel::None,
+            )
         };
         let seed = mk(&mut nexus, "Alex works at Meridian");
         let target = mk(&mut nexus, "Meridian builds robots");
@@ -811,7 +935,7 @@ mod tests {
         nexus.add_edge(&seed, &target, "relatedMeaning", 0.9);
 
         let mut idx = SimpleVectorIndex::new(2);
-        idx.insert(seed.clone(), vec![1.0, 0.0]).unwrap();   // close to query
+        idx.insert(seed.clone(), vec![1.0, 0.0]).unwrap(); // close to query
         idx.insert(target.clone(), vec![0.0, 1.0]).unwrap(); // far from query
         idx.insert(noise.clone(), vec![-1.0, 0.0]).unwrap();
 
@@ -819,7 +943,10 @@ mod tests {
         // Flat top-1 would only return the seed; associative recall reaches the target via the edge.
         let recalled = nexus.associative_recall(&idx, &query, 2, 1);
         assert!(recalled.contains(&seed));
-        assert!(recalled.contains(&target), "seed-set recall must reach the linked target");
+        assert!(
+            recalled.contains(&target),
+            "seed-set recall must reach the linked target"
+        );
     }
 
     #[test]
@@ -829,15 +956,25 @@ mod tests {
         let mut canon_ids = Vec::new();
         for i in 0..3 {
             canon_ids.push(nexus.create_node(
-                alloc::format!("canon fact {i}"), String::new(), vec![],
-                SourceType::UserUtterance, 2, None, CanonLevel::L2Foundational,
+                alloc::format!("canon fact {i}"),
+                String::new(),
+                vec![],
+                SourceType::UserUtterance,
+                2,
+                None,
+                CanonLevel::L2Foundational,
             ));
         }
         // 20 ephemeral noise nodes.
         for i in 0..20 {
             nexus.create_node(
-                alloc::format!("noise {i}"), String::new(), vec![],
-                SourceType::LlmGeneration, 5, None, CanonLevel::None,
+                alloc::format!("noise {i}"),
+                String::new(),
+                vec![],
+                SourceType::LlmGeneration,
+                5,
+                None,
+                CanonLevel::None,
             );
         }
         assert_eq!(nexus.len(), 23);
@@ -850,7 +987,10 @@ mod tests {
         // All canon survived despite being the oldest nodes.
         assert_eq!(nexus.canon_count(), 3);
         for id in &canon_ids {
-            assert!(nexus.get_node().contains_key(id), "canon fact was wrongly evicted");
+            assert!(
+                nexus.get_node().contains_key(id),
+                "canon fact was wrongly evicted"
+            );
         }
     }
 
@@ -858,12 +998,22 @@ mod tests {
     fn test_human_feedback_respects_the_provenance_ceiling() {
         let mut nexus = MemoryGraphNexus::new();
         let gen = nexus.create_node(
-            "model said something plausible".to_string(), String::new(), vec![],
-            SourceType::LlmGeneration, 5, None, CanonLevel::None,
+            "model said something plausible".to_string(),
+            String::new(),
+            vec![],
+            SourceType::LlmGeneration,
+            5,
+            None,
+            CanonLevel::None,
         );
         let selfd = nexus.create_node(
-            "i am an assistant with a memory".to_string(), String::new(), vec![],
-            SourceType::LlmSelfDescription, 11, None, CanonLevel::None,
+            "i am an assistant with a memory".to_string(),
+            String::new(),
+            vec![],
+            SourceType::LlmSelfDescription,
+            11,
+            None,
+            CanonLevel::None,
         );
 
         // Applause cannot lift a node past what its provenance allows: 0.70 for generation,
@@ -895,15 +1045,25 @@ mod tests {
         let mut ids = Vec::new();
         for i in 0..3 {
             let id = nexus.create_node(
-                alloc::format!("fact {i}"), String::new(), vec![],
-                SourceType::UserUtterance, 2, None, CanonLevel::None,
+                alloc::format!("fact {i}"),
+                String::new(),
+                vec![],
+                SourceType::UserUtterance,
+                2,
+                None,
+                CanonLevel::None,
             );
-            idx.insert(id.clone(), vec![1.0 - i as f32 * 0.1, i as f32 * 0.1, 0.0]).unwrap();
+            idx.insert(id.clone(), vec![1.0 - i as f32 * 0.1, i as f32 * 0.1, 0.0])
+                .unwrap();
             ids.push(id);
         }
 
         let query = [1.0f32, 0.0, 0.0];
-        let before: Vec<String> = idx.search(&query, 3).into_iter().map(|r| r.node_id).collect();
+        let before: Vec<String> = idx
+            .search(&query, 3)
+            .into_iter()
+            .map(|r| r.node_id)
+            .collect();
 
         // Bury the top hit under rejections and lift the last one with confirmations.
         for _ in 0..5 {
@@ -912,26 +1072,49 @@ mod tests {
         }
 
         // RANKING: identical. Feedback is not allowed anywhere near relevance.
-        let after: Vec<String> = idx.search(&query, 3).into_iter().map(|r| r.node_id).collect();
-        assert_eq!(before, after, "human feedback must not reorder search results");
+        let after: Vec<String> = idx
+            .search(&query, 3)
+            .into_iter()
+            .map(|r| r.node_id)
+            .collect();
+        assert_eq!(
+            before, after,
+            "human feedback must not reorder search results"
+        );
 
         // RETENTION: under pressure the rejected fact goes first and the confirmed one stays,
         // even though the rejected one is the closest match to the query.
         nexus.enforce_capacity(1);
-        assert!(!nexus.get_node().contains_key(&ids[0]), "rejected node should be evicted first");
-        assert!(nexus.get_node().contains_key(&ids[2]), "confirmed node should survive");
+        assert!(
+            !nexus.get_node().contains_key(&ids[0]),
+            "rejected node should be evicted first"
+        );
+        assert!(
+            nexus.get_node().contains_key(&ids[2]),
+            "confirmed node should survive"
+        );
     }
 
     #[test]
     fn test_promotion_to_canon_is_explicit_and_quarantine_holds() {
         let mut nexus = MemoryGraphNexus::new();
         let fact = nexus.create_node(
-            "the user is allergic to penicillin".to_string(), String::new(), vec![],
-            SourceType::UserUtterance, 2, None, CanonLevel::None,
+            "the user is allergic to penicillin".to_string(),
+            String::new(),
+            vec![],
+            SourceType::UserUtterance,
+            2,
+            None,
+            CanonLevel::None,
         );
         let selfd = nexus.create_node(
-            "i keep notes about the user".to_string(), String::new(), vec![],
-            SourceType::LlmSelfDescription, 11, None, CanonLevel::None,
+            "i keep notes about the user".to_string(),
+            String::new(),
+            vec![],
+            SourceType::LlmSelfDescription,
+            11,
+            None,
+            CanonLevel::None,
         );
         for _ in 0..3 {
             nexus.record_human_feedback(&fact, true);
@@ -941,14 +1124,20 @@ mod tests {
         // Confirmations alone change nothing — promotion is a separate, deliberate act.
         assert_eq!(nexus.canon_count(), 0);
 
-        assert_eq!(nexus.promote_confirmed_to_canon(3, CanonLevel::L1Project), 1);
+        assert_eq!(
+            nexus.promote_confirmed_to_canon(3, CanonLevel::L1Project),
+            1
+        );
         assert_eq!(nexus.canon_count(), 1);
         assert!(nexus.get_node()[&fact].canon_level.is_canon());
         // Enough votes never buy self-description its way out of quarantine.
         assert!(!nexus.get_node()[&selfd].canon_level.is_canon());
 
         // Idempotent: an already-canon node is not promoted twice.
-        assert_eq!(nexus.promote_confirmed_to_canon(3, CanonLevel::L1Project), 0);
+        assert_eq!(
+            nexus.promote_confirmed_to_canon(3, CanonLevel::L1Project),
+            0
+        );
         // And the promoted fact now survives what would otherwise evict it.
         nexus.enforce_capacity(0);
         assert!(nexus.get_node().contains_key(&fact));

@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub enum CanonLevel {
     None = 0,
-    L1Project = 1,     // Project-level canon (tracks, clips, studio role facts)
+    L1Project = 1,      // Project-level canon (tracks, clips, studio role facts)
     L2Foundational = 2, // Core foundational canon (agent essence, primary user profile)
 }
 

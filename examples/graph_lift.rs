@@ -125,10 +125,7 @@ fn run(avg_noise_deg: usize) -> (f64, f64, f64, f64) {
         // precision proxy: fraction of returned that are "relevant" (the seed or target
         // near THIS query). We approximate relevance by: returned id is a seed/target
         // whose embedding cos to q >= 0.3 OR is the linked target. Cheap proxy.
-        let rel = assoc
-            .iter()
-            .filter(|id| *id == target)
-            .count();
+        let rel = assoc.iter().filter(|id| *id == target).count();
         relsum += rel as f64 / assoc.len().max(1) as f64;
     }
     let n = QN as f64;
@@ -141,9 +138,7 @@ fn run(avg_noise_deg: usize) -> (f64, f64, f64, f64) {
 }
 
 fn main() {
-    println!(
-        "=== graph lift — target is embedding-distant but co-occurrence-linked ===",
-    );
+    println!("=== graph lift — target is embedding-distant but co-occurrence-linked ===",);
     println!(
         "nodes={} (bg {} + {} seed/target pairs)  D={}  top-k={}  hops={}",
         DISTRACT + 2 * QN,
@@ -167,5 +162,7 @@ fn main() {
     println!("flat recall  = target found by plain cosine top-k (expected ~0: target is far).");
     println!("assoc recall = target found by associative_recall (seed -> edge -> target).");
     println!("set size     = avg #ids returned by associative recall (expansion cost).");
-    println!("target-in-set= share of the returned set that is the wanted target (precision proxy).");
+    println!(
+        "target-in-set= share of the returned set that is the wanted target (precision proxy)."
+    );
 }
