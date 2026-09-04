@@ -90,9 +90,9 @@ fn run(sigma: f32) -> (f64, f64, f64) {
 
     let mut corpus_f32: Vec<Vec<f32>> = Vec::new();
     let mut labels: Vec<usize> = Vec::new();
-    for c in 0..C {
+    for (c, center) in centers.iter().enumerate() {
         for _ in 0..PER {
-            let mut v: Vec<f32> = (0..D).map(|i| centers[c][i] + sigma * rng.gauss()).collect();
+            let mut v: Vec<f32> = (0..D).map(|i| center[i] + sigma * rng.gauss()).collect();
             normalize(&mut v);
             corpus_f32.push(v);
             labels.push(c);
@@ -111,7 +111,9 @@ fn run(sigma: f32) -> (f64, f64, f64) {
     let mut queries: Vec<(Vec<f32>, usize)> = Vec::new();
     for _ in 0..Q {
         let c = (rng.u64() as usize) % C;
-        let mut v: Vec<f32> = (0..D).map(|i| centers[c][i] + sigma * rng.gauss()).collect();
+        let mut v: Vec<f32> = (0..D)
+            .map(|i| centers[c][i] + sigma * rng.gauss())
+            .collect();
         normalize(&mut v);
         queries.push((v, c));
     }
@@ -157,7 +159,12 @@ fn main() {
         };
         println!(
             "  {:.2}  | {} | {:5.1}%     {:5.1}%      {:5.1}%     {:+.2} pp",
-            sigma, regime, fid, pf, pi, pi - pf
+            sigma,
+            regime,
+            fid,
+            pf,
+            pi,
+            pi - pf
         );
     }
     println!();

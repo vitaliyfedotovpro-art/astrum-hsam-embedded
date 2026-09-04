@@ -21,8 +21,8 @@ use core::ptr;
 
 // ── spinlock (replaces std::sync::Mutex for no_std) ─────────────────────────
 
-use core::sync::atomic::{AtomicBool, Ordering};
 use core::cell::UnsafeCell;
+use core::sync::atomic::{AtomicBool, Ordering};
 
 /// Minimal spinlock. NOTE: not interrupt-safe on bare metal without a critical section;
 /// intended for main-loop use. Replaces std::sync::Mutex for no_std.
@@ -137,8 +137,13 @@ pub extern "C" fn astrum_memory_create() -> *mut AstrumMemoryHandle {
     Box::into_raw(handle)
 }
 
+/// # Safety
+///
+/// `handle` must be NULL or a live handle from `astrum_memory_create`/`astrum_memory_load`
+/// that no other thread is destroying concurrently. The handle is
+/// freed here and must not be used, or destroyed again, afterwards.
 #[no_mangle]
-pub extern "C" fn astrum_memory_destroy(handle: *mut AstrumMemoryHandle) {
+pub unsafe extern "C" fn astrum_memory_destroy(handle: *mut AstrumMemoryHandle) {
     if !handle.is_null() {
         unsafe {
             let _ = Box::from_raw(handle);
@@ -146,18 +151,26 @@ pub extern "C" fn astrum_memory_destroy(handle: *mut AstrumMemoryHandle) {
     }
 }
 
+/// # Safety
+///
+/// `handle` must be NULL or a live handle from `astrum_memory_create`/`astrum_memory_load`
+/// that no other thread is destroying concurrently.
 #[no_mangle]
-pub extern "C" fn astrum_memory_node_count(handle: *const AstrumMemoryHandle) -> usize {
+pub unsafe extern "C" fn astrum_memory_node_count(handle: *const AstrumMemoryHandle) -> usize {
     if handle.is_null() {
         return 0;
     }
-    let h = unsafe { &*handle };
+    let h = &*handle;
     let s = h.lock();
     s.nexus.len()
 }
 
+/// # Safety
+///
+/// `handle` must be NULL or a live handle from `astrum_memory_create`/`astrum_memory_load`
+/// that no other thread is destroying concurrently.
 #[no_mangle]
-pub extern "C" fn astrum_topological_boost(
+pub unsafe extern "C" fn astrum_topological_boost(
     handle: *const AstrumMemoryHandle,
     cell_a: u8,
     cell_b: u8,
@@ -165,7 +178,7 @@ pub extern "C" fn astrum_topological_boost(
     if handle.is_null() {
         return 1.0;
     }
-    let h = unsafe { &*handle };
+    let h = &*handle;
     let s = h.lock();
     s.nexus.topology().topological_boost(cell_a, cell_b)
 }
@@ -175,13 +188,22 @@ pub extern "C" fn astrum_topological_boost(
 /// Add a node and (optionally) its embedding.
 /// - `tags_csv`: comma-separated tags, may be NULL/empty.
 /// - `source_type`: 0=user_utterance 1=llm_generation 2=llm_self_description
-///                  3=external_doc 4=verified_external 5=unknown_legacy
+///   3=external_doc 4=verified_external 5=unknown_legacy
 /// - `canon_level`: 0=none 1=L1_project 2=L2_foundational
 /// - `embedding`/`embedding_len`: pass a non-null pointer to index the node for search.
 ///   The first embedding added fixes the index dimension; later ones must match.
+///
 /// Returns a heap node-id string (free with astrum_memory_free_string), or NULL on error.
+///
+/// # Safety
+///
+/// `handle` must be NULL or a live handle from `astrum_memory_create`/`astrum_memory_load`
+/// that no other thread is destroying concurrently.
+/// Every non-NULL string argument must be a NUL-terminated C string. If `embedding` is non-NULL it must point to at
+/// least `embedding_len` readable `f32`s; a shorter buffer reads out of bounds. The returned
+/// pointer is owned by the caller and must be released with `astrum_memory_free_string`.
 #[no_mangle]
-pub extern "C" fn astrum_memory_add_node(
+pub unsafe extern "C" fn astrum_memory_add_node(
     handle: *mut AstrumMemoryHandle,
     content: *const c_char,
     tags_csv: *const c_char,
@@ -194,7 +216,7 @@ pub extern "C" fn astrum_memory_add_node(
     if handle.is_null() {
         return ptr::null_mut();
     }
-    let h = unsafe { &*handle };
+    let h = &*handle;
     let mut s = h.lock();
 
     let content_s = cstr_to_string(content);
@@ -234,8 +256,14 @@ pub extern "C" fn astrum_memory_add_node(
 /// Set the emotional disposition (valence [-1,1], arousal [0,1], intensity [0,1]) of an
 /// existing node — the write path that feeds the affect-overlay engine at recall time.
 /// Returns 0 on success, non-zero if the handle/node_id is null or the node is unknown.
+///
+/// # Safety
+///
+/// `handle` must be NULL or a live handle from `astrum_memory_create`/`astrum_memory_load`
+/// that no other thread is destroying concurrently.
+/// Every non-NULL string argument must be a NUL-terminated C string.
 #[no_mangle]
-pub extern "C" fn astrum_memory_set_affect(
+pub unsafe extern "C" fn astrum_memory_set_affect(
     handle: *mut AstrumMemoryHandle,
     node_id: *const c_char,
     valence: f32,
@@ -245,7 +273,7 @@ pub extern "C" fn astrum_memory_set_affect(
     if handle.is_null() || node_id.is_null() {
         return 1;
     }
-    let h = unsafe { &*handle };
+    let h = &*handle;
     let mut s = h.lock();
     let id = cstr_to_string(node_id);
     let affect = AffectState {
@@ -275,8 +303,14 @@ pub extern "C" fn astrum_memory_set_affect(
 /// confirmation (-0.20 vs +0.15).
 ///
 /// Returns 0 on success, 1 if the handle/node_id is NULL, 2 if the node is unknown.
+///
+/// # Safety
+///
+/// `handle` must be NULL or a live handle from `astrum_memory_create`/`astrum_memory_load`
+/// that no other thread is destroying concurrently.
+/// Every non-NULL string argument must be a NUL-terminated C string.
 #[no_mangle]
-pub extern "C" fn astrum_memory_record_feedback(
+pub unsafe extern "C" fn astrum_memory_record_feedback(
     handle: *mut AstrumMemoryHandle,
     node_id: *const c_char,
     helpful: i32,
@@ -284,7 +318,7 @@ pub extern "C" fn astrum_memory_record_feedback(
     if handle.is_null() || node_id.is_null() {
         return 1;
     }
-    let h = unsafe { &*handle };
+    let h = &*handle;
     let mut s = h.lock();
     let id = cstr_to_string(node_id);
     if s.nexus.record_human_feedback(&id, helpful != 0) {
@@ -299,8 +333,13 @@ pub extern "C" fn astrum_memory_record_feedback(
 /// recording feedback on purpose: making a fact immortal is a decision, taken when you
 /// choose, not a side effect of praise. Model self-description is never promoted.
 /// Returns the number of nodes promoted.
+///
+/// # Safety
+///
+/// `handle` must be NULL or a live handle from `astrum_memory_create`/`astrum_memory_load`
+/// that no other thread is destroying concurrently.
 #[no_mangle]
-pub extern "C" fn astrum_memory_promote_confirmed(
+pub unsafe extern "C" fn astrum_memory_promote_confirmed(
     handle: *mut AstrumMemoryHandle,
     min_confirmations: u32,
     canon_level: u8,
@@ -308,7 +347,7 @@ pub extern "C" fn astrum_memory_promote_confirmed(
     if handle.is_null() {
         return 0;
     }
-    let h = unsafe { &*handle };
+    let h = &*handle;
     let mut s = h.lock();
     s.nexus
         .promote_confirmed_to_canon(min_confirmations, canon_from_u8(canon_level))
@@ -321,15 +360,20 @@ pub extern "C" fn astrum_memory_promote_confirmed(
 /// The evicted nodes' embeddings are dropped from the vector index too — otherwise the call
 /// would free almost nothing, since the embedding is the bulk of a node's cost.
 /// Returns the number of nodes evicted.
+///
+/// # Safety
+///
+/// `handle` must be NULL or a live handle from `astrum_memory_create`/`astrum_memory_load`
+/// that no other thread is destroying concurrently.
 #[no_mangle]
-pub extern "C" fn astrum_memory_enforce_capacity(
+pub unsafe extern "C" fn astrum_memory_enforce_capacity(
     handle: *mut AstrumMemoryHandle,
     max_nodes: usize,
 ) -> usize {
     if handle.is_null() {
         return 0;
     }
-    let h = unsafe { &*handle };
+    let h = &*handle;
     let mut s = h.lock();
     let evicted = s.nexus.enforce_capacity(max_nodes);
     if evicted > 0 {
@@ -352,8 +396,15 @@ pub extern "C" fn astrum_memory_enforce_capacity(
 /// Returns a heap JSON array string (free with astrum_memory_free_string):
 ///   [{"node_id","content","cell_id","cosine","score"}], sorted by score desc.
 /// Returns "[]" if there is no index or no query.
+///
+/// # Safety
+///
+/// `handle` must be NULL or a live handle from `astrum_memory_create`/`astrum_memory_load`
+/// that no other thread is destroying concurrently. `query` must point to at
+/// least `query_len` readable `f32`s. The returned pointer is owned by the caller and must be
+/// released with `astrum_memory_free_string`.
 #[no_mangle]
-pub extern "C" fn astrum_memory_search(
+pub unsafe extern "C" fn astrum_memory_search(
     handle: *const AstrumMemoryHandle,
     query: *const f32,
     query_len: usize,
@@ -364,7 +415,7 @@ pub extern "C" fn astrum_memory_search(
     if handle.is_null() || query.is_null() || query_len == 0 || top_k == 0 {
         return empty();
     }
-    let h = unsafe { &*handle };
+    let h = &*handle;
     let s = h.lock();
     let idx = match s.index.as_ref() {
         Some(i) => i,
@@ -431,16 +482,22 @@ pub extern "C" fn astrum_memory_search(
 
 /// Save the full engine state (graph + topology + vector index) to a JSON file.
 /// Returns 0 on success, non-zero on error (null handle/path, or I/O failure).
+///
+/// # Safety
+///
+/// `handle` must be NULL or a live handle from `astrum_memory_create`/`astrum_memory_load`
+/// that no other thread is destroying concurrently.
+/// Every non-NULL string argument must be a NUL-terminated C string.
 #[cfg(feature = "std")]
 #[no_mangle]
-pub extern "C" fn astrum_memory_save(
+pub unsafe extern "C" fn astrum_memory_save(
     handle: *const AstrumMemoryHandle,
     path: *const c_char,
 ) -> i32 {
     if handle.is_null() || path.is_null() {
         return 1;
     }
-    let h = unsafe { &*handle };
+    let h = &*handle;
     let s = h.lock();
     let path_s = cstr_to_string(path);
     // Clone the state into an owned snapshot (borrow-only view is enough here).
@@ -453,9 +510,14 @@ pub extern "C" fn astrum_memory_save(
 
 /// Load an engine from a JSON snapshot. Returns a new handle (free with
 /// astrum_memory_destroy), or NULL on error. The saved topology is restored.
+///
+/// # Safety
+///
+/// Every non-NULL string argument must be a NUL-terminated C string. The returned handle is owned by the
+/// caller and must be released with `astrum_memory_destroy`.
 #[cfg(feature = "std")]
 #[no_mangle]
-pub extern "C" fn astrum_memory_load(path: *const c_char) -> *mut AstrumMemoryHandle {
+pub unsafe extern "C" fn astrum_memory_load(path: *const c_char) -> *mut AstrumMemoryHandle {
     if path.is_null() {
         return ptr::null_mut();
     }
@@ -481,8 +543,12 @@ pub extern "C" fn astrum_memory_version() -> *mut c_char {
     s.into_raw()
 }
 
+/// # Safety
+///
+/// `s` must be NULL or a pointer returned by this library's own string-returning
+/// functions, passed exactly once. Freeing a foreign or already-freed pointer is undefined.
 #[no_mangle]
-pub extern "C" fn astrum_memory_free_string(s: *mut c_char) {
+pub unsafe extern "C" fn astrum_memory_free_string(s: *mut c_char) {
     if !s.is_null() {
         unsafe {
             let _ = CString::from_raw(s);
@@ -496,164 +562,256 @@ mod tests {
 
     #[test]
     fn test_c_api() {
-        let handle = astrum_memory_create();
-        assert!(!handle.is_null());
+        // Every call below crosses the C ABI, where the caller owns the
+        // pointer contract; one block beats dotting `unsafe` through each line.
+        unsafe {
+            let handle = astrum_memory_create();
+            assert!(!handle.is_null());
 
-        let count = astrum_memory_node_count(handle);
-        assert_eq!(count, 0);
+            let count = astrum_memory_node_count(handle);
+            assert_eq!(count, 0);
 
-        let boost = astrum_topological_boost(handle, 1, 2);
-        assert_eq!(boost, 0.90);
+            let boost = astrum_topological_boost(handle, 1, 2);
+            assert_eq!(boost, 0.90);
 
-        astrum_memory_destroy(handle);
+            astrum_memory_destroy(handle);
+        }
     }
 
     #[test]
     fn test_c_api_add_and_search() {
-        let handle = astrum_memory_create();
-        let mk = |s: &str| CString::new(s).unwrap();
+        // Every call below crosses the C ABI, where the caller owns the
+        // pointer contract; one block beats dotting `unsafe` through each line.
+        unsafe {
+            let handle = astrum_memory_create();
+            let mk = |s: &str| CString::new(s).unwrap();
 
-        // Two user facts (cell 2) and one LLM self-note (cell 11), 3-dim embeddings.
-        let e1 = [1.0f32, 0.0, 0.0];
-        let e2 = [0.9f32, 0.1, 0.0];
-        let e3 = [0.0f32, 0.0, 1.0];
-        // Every returned id is freed: dropping one leaks it, which is exactly what Miri
-        // caught here — the API hands ownership to the caller and has no way to take it back.
-        let id1 = astrum_memory_add_node(handle, mk("user likes tea").as_ptr(), mk("pref").as_ptr(), 0, 2, 0, e1.as_ptr(), 3);
-        let id2 = astrum_memory_add_node(handle, mk("user likes coffee").as_ptr(), mk("pref").as_ptr(), 0, 2, 0, e2.as_ptr(), 3);
-        let id3 = astrum_memory_add_node(handle, mk("i am an engine").as_ptr(), mk("meta").as_ptr(), 2, 11, 0, e3.as_ptr(), 3);
-        astrum_memory_free_string(id1);
-        astrum_memory_free_string(id2);
-        astrum_memory_free_string(id3);
+            // Two user facts (cell 2) and one LLM self-note (cell 11), 3-dim embeddings.
+            let e1 = [1.0f32, 0.0, 0.0];
+            let e2 = [0.9f32, 0.1, 0.0];
+            let e3 = [0.0f32, 0.0, 1.0];
+            // Every returned id is freed: dropping one leaks it, which is exactly what Miri
+            // caught here — the API hands ownership to the caller and has no way to take it back.
+            let id1 = astrum_memory_add_node(
+                handle,
+                mk("user likes tea").as_ptr(),
+                mk("pref").as_ptr(),
+                0,
+                2,
+                0,
+                e1.as_ptr(),
+                3,
+            );
+            let id2 = astrum_memory_add_node(
+                handle,
+                mk("user likes coffee").as_ptr(),
+                mk("pref").as_ptr(),
+                0,
+                2,
+                0,
+                e2.as_ptr(),
+                3,
+            );
+            let id3 = astrum_memory_add_node(
+                handle,
+                mk("i am an engine").as_ptr(),
+                mk("meta").as_ptr(),
+                2,
+                11,
+                0,
+                e3.as_ptr(),
+                3,
+            );
+            astrum_memory_free_string(id1);
+            astrum_memory_free_string(id2);
+            astrum_memory_free_string(id3);
 
-        assert_eq!(astrum_memory_node_count(handle), 3);
+            assert_eq!(astrum_memory_node_count(handle), 3);
 
-        // Query near e1: should return tea/coffee (user facts) ahead of the self-note.
-        let q = [1.0f32, 0.0, 0.0];
-        let json_ptr = astrum_memory_search(handle, q.as_ptr(), 3, 2, 3);
-        let json = unsafe { CStr::from_ptr(json_ptr) }.to_string_lossy().into_owned();
-        astrum_memory_free_string(json_ptr);
+            // Query near e1: should return tea/coffee (user facts) ahead of the self-note.
+            let q = [1.0f32, 0.0, 0.0];
+            let json_ptr = astrum_memory_search(handle, q.as_ptr(), 3, 2, 3);
+            let json = CStr::from_ptr(json_ptr).to_string_lossy().into_owned();
+            astrum_memory_free_string(json_ptr);
 
-        assert!(json.contains("tea"));
-        assert!(json.starts_with('['));
-        // Top result is a user fact, not the self-description.
-        let first = json.split("},{").next().unwrap();
-        assert!(first.contains("tea") || first.contains("coffee"));
+            assert!(json.contains("tea"));
+            assert!(json.starts_with('['));
+            // Top result is a user fact, not the self-description.
+            let first = json.split("},{").next().unwrap();
+            assert!(first.contains("tea") || first.contains("coffee"));
 
-        astrum_memory_destroy(handle);
+            astrum_memory_destroy(handle);
+        }
     }
 
     #[test]
     fn test_c_api_set_affect() {
-        let handle = astrum_memory_create();
-        let content = CString::new("stormy night conversation").unwrap();
-        let id_ptr = astrum_memory_add_node(
-            handle, content.as_ptr(), ptr::null(), 0, 17, 0, ptr::null(), 0,
-        );
-        assert!(!id_ptr.is_null());
+        // Every call below crosses the C ABI, where the caller owns the
+        // pointer contract; one block beats dotting `unsafe` through each line.
+        unsafe {
+            let handle = astrum_memory_create();
+            let content = CString::new("stormy night conversation").unwrap();
+            let id_ptr = astrum_memory_add_node(
+                handle,
+                content.as_ptr(),
+                ptr::null(),
+                0,
+                17,
+                0,
+                ptr::null(),
+                0,
+            );
+            assert!(!id_ptr.is_null());
 
-        // Out-of-range values are clamped; unknown node id fails with 2.
-        let rc = astrum_memory_set_affect(handle, id_ptr, -2.0, 0.9, 1.5);
-        assert_eq!(rc, 0);
-        let missing = CString::new("no-such-node").unwrap();
-        assert_eq!(astrum_memory_set_affect(handle, missing.as_ptr(), 0.0, 0.0, 0.0), 2);
+            // Out-of-range values are clamped; unknown node id fails with 2.
+            let rc = astrum_memory_set_affect(handle, id_ptr, -2.0, 0.9, 1.5);
+            assert_eq!(rc, 0);
+            let missing = CString::new("no-such-node").unwrap();
+            assert_eq!(
+                astrum_memory_set_affect(handle, missing.as_ptr(), 0.0, 0.0, 0.0),
+                2
+            );
 
-        let h = unsafe { &*handle };
-        {
-            let s = h.lock();
-            let id = unsafe { CStr::from_ptr(id_ptr) }.to_string_lossy().into_owned();
-            let node = s.nexus.get_node().get(&id).unwrap();
-            assert_eq!(node.affect.valence, -1.0); // clamped
-            assert_eq!(node.affect.intensity, 1.0); // clamped
-            assert_eq!(node.affect.source, "c_api");
+            let h = &*handle;
+            {
+                let s = h.lock();
+                let id = CStr::from_ptr(id_ptr).to_string_lossy().into_owned();
+                let node = s.nexus.get_node().get(&id).unwrap();
+                assert_eq!(node.affect.valence, -1.0); // clamped
+                assert_eq!(node.affect.intensity, 1.0); // clamped
+                assert_eq!(node.affect.source, "c_api");
+            }
+
+            astrum_memory_free_string(id_ptr);
+            astrum_memory_destroy(handle);
         }
-
-        astrum_memory_free_string(id_ptr);
-        astrum_memory_destroy(handle);
     }
 
     #[test]
     fn test_c_api_feedback_drives_eviction_and_frees_the_index() {
-        let handle = astrum_memory_create();
-        let mk = |s: &str| CString::new(s).unwrap();
+        // Every call below crosses the C ABI, where the caller owns the
+        // pointer contract; one block beats dotting `unsafe` through each line.
+        unsafe {
+            let handle = astrum_memory_create();
+            let mk = |s: &str| CString::new(s).unwrap();
 
-        // Two equally valid user facts; the first is also the better match for the query.
-        let e1 = [1.0f32, 0.0, 0.0];
-        let e2 = [0.9f32, 0.1, 0.0];
-        let id_bad = astrum_memory_add_node(handle, mk("misheard fact").as_ptr(), ptr::null(), 0, 2, 0, e1.as_ptr(), 3);
-        let id_good = astrum_memory_add_node(handle, mk("correct fact").as_ptr(), ptr::null(), 0, 2, 0, e2.as_ptr(), 3);
+            // Two equally valid user facts; the first is also the better match for the query.
+            let e1 = [1.0f32, 0.0, 0.0];
+            let e2 = [0.9f32, 0.1, 0.0];
+            let id_bad = astrum_memory_add_node(
+                handle,
+                mk("misheard fact").as_ptr(),
+                ptr::null(),
+                0,
+                2,
+                0,
+                e1.as_ptr(),
+                3,
+            );
+            let id_good = astrum_memory_add_node(
+                handle,
+                mk("correct fact").as_ptr(),
+                ptr::null(),
+                0,
+                2,
+                0,
+                e2.as_ptr(),
+                3,
+            );
 
-        // A human says the close match was wrong and the other one was right.
-        assert_eq!(astrum_memory_record_feedback(handle, id_bad, 0), 0);
-        assert_eq!(astrum_memory_record_feedback(handle, id_good, 1), 0);
-        assert_eq!(astrum_memory_record_feedback(handle, ptr::null(), 1), 1);
-        let missing = CString::new("no-such-node").unwrap();
-        assert_eq!(astrum_memory_record_feedback(handle, missing.as_ptr(), 1), 2);
+            // A human says the close match was wrong and the other one was right.
+            assert_eq!(astrum_memory_record_feedback(handle, id_bad, 0), 0);
+            assert_eq!(astrum_memory_record_feedback(handle, id_good, 1), 0);
+            assert_eq!(astrum_memory_record_feedback(handle, ptr::null(), 1), 1);
+            let missing = CString::new("no-such-node").unwrap();
+            assert_eq!(
+                astrum_memory_record_feedback(handle, missing.as_ptr(), 1),
+                2
+            );
 
-        // Under pressure the rejected fact goes, the confirmed one stays — despite being
-        // the weaker cosine match.
-        assert_eq!(astrum_memory_enforce_capacity(handle, 1), 1);
-        assert_eq!(astrum_memory_node_count(handle), 1);
-        {
-            let h = unsafe { &*handle };
-            let s = h.lock();
-            let good = unsafe { CStr::from_ptr(id_good) }.to_string_lossy().into_owned();
-            assert!(s.nexus.get_node().contains_key(&good), "confirmed fact should survive");
-            // The evicted node's embedding is gone too, or the eviction freed nothing.
-            assert_eq!(s.index.as_ref().unwrap().len(), 1, "index must shed evicted vectors");
+            // Under pressure the rejected fact goes, the confirmed one stays — despite being
+            // the weaker cosine match.
+            assert_eq!(astrum_memory_enforce_capacity(handle, 1), 1);
+            assert_eq!(astrum_memory_node_count(handle), 1);
+            {
+                let h = &*handle;
+                let s = h.lock();
+                let good = CStr::from_ptr(id_good).to_string_lossy().into_owned();
+                assert!(
+                    s.nexus.get_node().contains_key(&good),
+                    "confirmed fact should survive"
+                );
+                // The evicted node's embedding is gone too, or the eviction freed nothing.
+                assert_eq!(
+                    s.index.as_ref().unwrap().len(),
+                    1,
+                    "index must shed evicted vectors"
+                );
+            }
+
+            // Promotion is explicit and makes the fact immortal.
+            assert_eq!(astrum_memory_promote_confirmed(handle, 1, 2), 1);
+            assert_eq!(astrum_memory_enforce_capacity(handle, 0), 0);
+            assert_eq!(astrum_memory_node_count(handle), 1);
+
+            astrum_memory_free_string(id_bad);
+            astrum_memory_free_string(id_good);
+            astrum_memory_destroy(handle);
         }
-
-        // Promotion is explicit and makes the fact immortal.
-        assert_eq!(astrum_memory_promote_confirmed(handle, 1, 2), 1);
-        assert_eq!(astrum_memory_enforce_capacity(handle, 0), 0);
-        assert_eq!(astrum_memory_node_count(handle), 1);
-
-        astrum_memory_free_string(id_bad);
-        astrum_memory_free_string(id_good);
-        astrum_memory_destroy(handle);
     }
 
     #[cfg(all(test, feature = "std"))]
     #[test]
     fn test_c_api_concurrent_access() {
-        // The thread-safety claim in the header must hold in Rust terms too:
-        // concurrent add_node + search on one handle, no data race (SpinMutex serializes).
-        let handle = astrum_memory_create();
+        // Every call below crosses the C ABI, where the caller owns the
+        // pointer contract; one block beats dotting `unsafe` through each line.
+        unsafe {
+            // The thread-safety claim in the header must hold in Rust terms too:
+            // concurrent add_node + search on one handle, no data race (SpinMutex serializes).
+            let handle = astrum_memory_create();
 
-        // Carry the pointer itself across threads rather than an integer address. Casting
-        // through usize erases provenance, and Miri then warns it can no longer check this
-        // test for pointer bugs — which is the one thing the test exists to check.
-        #[derive(Clone, Copy)]
-        struct SharedHandle(*mut AstrumMemoryHandle);
-        unsafe impl Send for SharedHandle {}
-        let shared = SharedHandle(handle);
+            // Carry the pointer itself across threads rather than an integer address. Casting
+            // through usize erases provenance, and Miri then warns it can no longer check this
+            // test for pointer bugs — which is the one thing the test exists to check.
+            #[derive(Clone, Copy)]
+            struct SharedHandle(*mut AstrumMemoryHandle);
+            unsafe impl Send for SharedHandle {}
+            let shared = SharedHandle(handle);
 
-        let writers: Vec<_> = (0..4)
-            .map(|t| {
-                std::thread::spawn(move || {
-                    // Bind the whole struct: edition-2021 closures capture individual fields,
-                    // and a bare `shared.0` would capture the raw pointer, which is not Send.
-                    let shared = shared;
-                    let h = shared.0;
-                    for i in 0..50 {
-                        let content = CString::new(alloc::format!("fact {t}-{i}")).unwrap();
-                        let e = [i as f32, t as f32, 1.0];
-                        let id = astrum_memory_add_node(
-                            h, content.as_ptr(), ptr::null(), 0, 2, 0, e.as_ptr(), 3,
-                        );
-                        astrum_memory_free_string(id);
-                        let q = [1.0f32, 0.0, 0.0];
-                        let json = astrum_memory_search(h, q.as_ptr(), 3, 0, 5);
-                        astrum_memory_free_string(json);
-                    }
+            let writers: Vec<_> = (0..4)
+                .map(|t| {
+                    std::thread::spawn(move || {
+                        // Bind the whole struct: edition-2021 closures capture individual fields,
+                        // and a bare `shared.0` would capture the raw pointer, which is not Send.
+                        let shared = shared;
+                        let h = shared.0;
+                        for i in 0..50 {
+                            let content = CString::new(alloc::format!("fact {t}-{i}")).unwrap();
+                            let e = [i as f32, t as f32, 1.0];
+                            let id = astrum_memory_add_node(
+                                h,
+                                content.as_ptr(),
+                                ptr::null(),
+                                0,
+                                2,
+                                0,
+                                e.as_ptr(),
+                                3,
+                            );
+                            astrum_memory_free_string(id);
+                            let q = [1.0f32, 0.0, 0.0];
+                            let json = astrum_memory_search(h, q.as_ptr(), 3, 0, 5);
+                            astrum_memory_free_string(json);
+                        }
+                    })
                 })
-            })
-            .collect();
-        for w in writers {
-            w.join().unwrap();
-        }
+                .collect();
+            for w in writers {
+                w.join().unwrap();
+            }
 
-        assert_eq!(astrum_memory_node_count(handle), 200);
-        astrum_memory_destroy(handle);
+            assert_eq!(astrum_memory_node_count(handle), 200);
+            astrum_memory_destroy(handle);
+        }
     }
 }

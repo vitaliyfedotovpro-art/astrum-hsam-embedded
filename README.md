@@ -1,5 +1,7 @@
 # Astrum HSAM — embedded
 
+[![CI](https://github.com/vitaliyfedotovpro-art/astrum-hsam-embedded/actions/workflows/ci.yml/badge.svg)](https://github.com/vitaliyfedotovpro-art/astrum-hsam-embedded/actions/workflows/ci.yml)
+
 A `no_std` Rust memory engine for AI agents that run on small hardware. It does two things a
 vector store does not:
 
@@ -33,6 +35,11 @@ cc ctest/main.c -Iinclude -Ltarget/release -lastrum_memory -o ctest/ctest && ./c
 
 The QEMU benchmarks need `qemu-system-arm`; every command is listed in
 [INTEGRATION.md §6](INTEGRATION.md).
+
+CI runs the rest on every push: both test suites, `clippy -D warnings`, `rustfmt`, the two
+cross-compile targets, the C test under ASan + UBSan, and Miri with strict provenance. The
+QEMU benchmarks are not in CI — they report numbers rather than pass/fail, and pinning them
+needs a regression tolerance that has not been agreed.
 
 ## The one-paragraph version of the design
 

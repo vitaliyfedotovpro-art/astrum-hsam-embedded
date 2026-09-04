@@ -1,0 +1,76 @@
+# Every claim in the README that a machine can check, checked on every push.
+# The QEMU firmware benchmarks in footprint-fw/ are not here: they report numbers
+# rather than pass/fail, and pinning them needs a tolerance nobody has agreed yet.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: tests, fmt, clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo clippy --all-targets --features capi-int8 -- -D warnings
+      # 29 tests in each index backend; they are different code paths, not a rerun.
+      - run: cargo test
+      - run: cargo test --features capi-int8
+
+  cross:
+    name: cross-compile to MCU targets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: thumbv7em-none-eabihf, riscv32imac-unknown-none-elf
+      - name: Cortex-M4F
+        run: cargo build --release --no-default-features --target thumbv7em-none-eabihf
+      - name: RISC-V
+        run: cargo build --release --no-default-features --target riscv32imac-unknown-none-elf
+      - name: Cortex-M4F, int8 index
+        run: cargo build --release --no-default-features --features capi-int8 --target thumbv7em-none-eabihf
+
+  c-abi:
+    name: C ABI (32 checks, then again under ASan + UBSan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build the static library
+        run: cargo rustc --release --features std --crate-type staticlib
+      - name: Link and run ctest
+        run: |
+          cc ctest/main.c -Iinclude -Ltarget/release -lastrum_memory \
+             -lm -lpthread -ldl -o ctest/ctest
+          ./ctest/ctest
+      - name: Same, under ASan + UBSan
+        run: |
+          clang -g -fsanitize=address,undefined ctest/main.c -Iinclude \
+             -Ltarget/release -lastrum_memory -lm -lpthread -ldl -o ctest/ctest_asan
+          ./ctest/ctest_asan
+
+  miri:
+    name: Miri (strict provenance, leak check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: miri
+      # --no-default-features drops libm's inline asm, which Miri cannot execute.
+      - run: cargo miri test --no-default-features --features std
+        env:
+          MIRIFLAGS: -Zmiri-disable-isolation -Zmiri-strict-provenance

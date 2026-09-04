@@ -36,14 +36,14 @@ impl SourceType {
     /// Score rank multiplier for retrieval
     pub fn rank_multiplier(&self) -> f32 {
         match self {
-            SourceType::UserUtterance => 1.35,      // Primary user facts boosted
+            SourceType::UserUtterance => 1.35, // Primary user facts boosted
             SourceType::VerifiedExternal => 1.20,
             SourceType::ExternalDoc => 1.00,
-            SourceType::LlmGeneration => 0.55,       // ungrounded model output — steeper discount
-                                                     // (a scale benchmark showed 0.85 let the LLM
-                                                     // background leak into top-k when relevant
-                                                     // user facts were sparse)
-            SourceType::LlmSelfDescription => 0.00,  // Quarantined from normal recall
+            SourceType::LlmGeneration => 0.55, // ungrounded model output — steeper discount
+            // (a scale benchmark showed 0.85 let the LLM
+            // background leak into top-k when relevant
+            // user facts were sparse)
+            SourceType::LlmSelfDescription => 0.00, // Quarantined from normal recall
             SourceType::UnknownLegacy => 0.90,
         }
     }
@@ -85,17 +85,17 @@ mod tests {
 
     #[test]
     fn test_pfc_guard() {
-        match PfcGuard::evaluate_similarity(0.95, "node_123") {
-            PfcAction::RejectDuplicate => assert!(true),
-            _ => panic!("Expected RejectDuplicate"),
-        }
+        assert!(matches!(
+            PfcGuard::evaluate_similarity(0.95, "node_123"),
+            PfcAction::RejectDuplicate
+        ));
         match PfcGuard::evaluate_similarity(0.85, "node_123") {
             PfcAction::Elaborate(id) => assert_eq!(id, "node_123"),
             _ => panic!("Expected Elaborate"),
         }
-        match PfcGuard::evaluate_similarity(0.50, "node_123") {
-            PfcAction::Accept => assert!(true),
-            _ => panic!("Expected Accept"),
-        }
+        assert!(matches!(
+            PfcGuard::evaluate_similarity(0.50, "node_123"),
+            PfcAction::Accept
+        ));
     }
 }
